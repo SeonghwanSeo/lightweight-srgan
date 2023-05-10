@@ -1,7 +1,9 @@
 .DS_Store
 # Byte-compiled / optimized / DLL files
-results/
+result*
 *DIV2K*
+*.sh
+__pycache__
 
 # C extensions
 *.so
