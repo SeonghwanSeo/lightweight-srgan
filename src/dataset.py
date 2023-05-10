@@ -5,7 +5,6 @@ from os.path import join
 from PIL import Image
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms import RandomCrop, ToTensor, CenterCrop, Resize, InterpolationMode
-from torchvision.utils import save_image
 
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in ['.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'])

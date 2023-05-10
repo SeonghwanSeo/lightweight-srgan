@@ -1,9 +1,11 @@
 import torch
+from torch._six import inf
 from torchvision.transforms import ToPILImage, Compose, ToTensor, Resize, InterpolationMode
-from . import pytorch_ssim
 import math
 from typing import Dict
 from torch import Tensor
+
+from . import pytorch_ssim
 
 def display_transform(tensor: Tensor, size: int) -> Tensor:
     tensor = tensor.cpu()
@@ -48,7 +50,7 @@ class NativeScalerWithGradNormCount:
         self._scaler = torch.cuda.amp.GradScaler()
 
     def __call__(self, loss):
-        create_graph = hasattr(self.optimizer, 'is_second_order') and optimizer.is_second_order
+        create_graph = hasattr(self.optimizer, 'is_second_order') and self.optimizer.is_second_order
         self._scaler.scale(loss).backward(create_graph=create_graph)
         if self.clip_grad is not None:
             self._scaler.unscale_(self.optimizer)  # unscale the gradients of optimizer's assigned params in-place

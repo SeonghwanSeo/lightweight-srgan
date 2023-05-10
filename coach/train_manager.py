@@ -1,7 +1,6 @@
 import argparse
 import os
 from omegaconf import OmegaConf
-import copy
 from pathlib import Path
 
 __all__ = ['Train_Manager']
@@ -15,7 +14,7 @@ class Train_ArgParser(argparse.ArgumentParser) :
         exp_args = self.add_argument_group('experiment information')
         exp_args.add_argument('--name', type=str, help='job name', required=True)
         exp_args.add_argument('--exp_dir', type=str, help='path of experiment directory', default='./result/')
-        exp_args.add_argument('--auto_resume', action='store_true', help='Auto-Resume Training.')
+        exp_args.add_argument('--resume', action='store_true', help='Resume Training.')
 
         # config
         cfg_args = self.add_argument_group('config')
@@ -57,11 +56,11 @@ class Train_Manager() :
     def parse_config(self) :
         args = self.parser.parse_args()
         run_dir = os.path.join(args.exp_dir, args.name)
-        if args.auto_resume :
+        if args.resume :
             restart = os.path.exists(run_dir)
             Path(run_dir).mkdir(parents=True, exist_ok=True)
         else :
-            assert not os.path.exists(run_dir), f'{run_dir} is already exsits'
+            assert not os.path.exists(run_dir), f'{run_dir} is already exsits. If you want to resume training, use `--resume`'
             restart = False
             Path(run_dir).mkdir(parents=True, exist_ok=False)
 
@@ -74,7 +73,6 @@ class Train_Manager() :
         else :
             config = OmegaConf.load(args.config)
             config.RUN_DIR = run_dir
-
             model_config = OmegaConf.load(args.model_config)
             config.MODEL = model_config
 

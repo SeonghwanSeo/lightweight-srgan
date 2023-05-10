@@ -9,7 +9,7 @@ import logging
 
 from src.pretrain import Trainer
 from coach.train_manager import Train_Manager
-from utils import setup_logger
+from logger import setup_logger
 
 def main(config) : 
     seed = config.SEED

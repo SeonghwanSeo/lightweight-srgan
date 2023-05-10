@@ -31,15 +31,17 @@ class Trainer() :
 
         if config.restart :
             self.load_checkpoint()
+        elif config.PRETRAINED_MODEL is not None :
+            self.load_pretrained()
 
     def setup_work_directory(self) :
         run_dir = self.config.RUN_DIR
         self.save_dir = save_dir = os.path.join(run_dir, 'save')
-        self.log_dir = log_dir = os.path.join(run_dir, 'log')
+        self.image_log_dir = image_log_dir = os.path.join(run_dir, 'image_log')
         self.tblog_dir = tblog_dir = os.path.join(run_dir, 'tensorboard')
         if not self.config.restart :
             os.mkdir(save_dir)
-            os.mkdir(log_dir)
+            os.mkdir(image_log_dir)
             if LOAD_TENSORBOARD :
                 os.mkdir(tblog_dir)
         if LOAD_TENSORBOARD :
@@ -102,7 +104,7 @@ class Trainer() :
         while self.global_step < self.config.MAX_STEP :
             self.global_epoch += 1
             for batch in self.train_dataloader :
-                metrics = self.run_train_step(batch)
+                self.run_train_step(batch)
                 if self.global_step == self.config.MAX_STEP :
                     break
                 if self.global_step % self.config.VAL_INTERVAL == 0 :
@@ -189,7 +191,7 @@ class Trainer() :
     def log_images(self, lr: Tensor, sr: Tensor, hr: Tensor, num_chunks = 4) :
         batch_size = lr.size(0)
         num_image_files = batch_size // num_chunks
-        log_dir = os.path.join(self.log_dir, str(self.global_step))
+        log_dir = os.path.join(self.image_log_dir, str(self.global_step))
         os.mkdir(log_dir)
         for i in range(num_image_files) :
             idx = i * num_chunks
@@ -268,6 +270,17 @@ class Trainer() :
         self.global_epoch = checkpoint['epoch']
         self.best_metric = checkpoint['best_metric']
         logging.info(f"=> loaded successfully {ckpt_path} (STEP {checkpoint['step']} EPOCH {checkpoint['epoch']})")
+
+        del checkpoint
+        torch.cuda.empty_cache()
+
+    def load_pretrained(self):
+        logging.info(f"==============> Loading weight {self.config.PRETRAINED_MODEL}......")
+        checkpoint = torch.load(self.config.PRETRAINED_MODEL, map_location='cpu')
+
+        msg = self.model.load_state_dict(checkpoint['model'], strict=False)
+        logging.info(msg)
+        logging.info(f"=> loaded successfully {self.config.PRETRAINED_MODEL}")
 
         del checkpoint
         torch.cuda.empty_cache()
