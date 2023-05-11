@@ -1,4 +1,0 @@
-generator_type: 'SRMobileNetV2'
-num_blocks: 5
-hidden_dim: 32
-expand_ratio: 4

@@ -1,0 +1,7 @@
+BODY:
+  _type_: ResNet
+  num_blocks: 5
+
+HEAD:
+  _type_: MobileHeadV2
+  expand_ratio: 1

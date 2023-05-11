@@ -1,8 +1,6 @@
 import torch
 from torch import nn, Tensor
 
-from .base import SRBaseNet
-
 class BasicConv(nn.Sequential) :
     def __init__(self,
                  in_channels,
@@ -43,20 +41,16 @@ class InvertedResidual(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return x + self.layers(x)
 
-class SRMobileNetV2(SRBaseNet):
+class MobileNetV2(nn.Module):
     def __init__(self,
-                 hidden_dim: int = 32,
                  expand_ratio: int = 4,
-                 num_blocks = 5,
-                 scale_factor = 4) :
-        if hidden_dim != 64 :
-            body = nn.Sequential(
-                BasicConv(64, hidden_dim, kernel_size=1),
-                *[InvertedResidual(hidden_dim, expand_ratio) for _ in range(num_blocks)],
-                BasicConv(hidden_dim, 64, kernel_size=1),
-            )
-        else :
-            body = nn.Sequential(
-                *[InvertedResidual(64, expand_ratio) for _ in range(num_blocks)],
-            )
-        super().__init__(body, scale_factor)
+                 num_blocks = 5
+        ) :
+        super().__init__()
+        body = nn.Sequential(
+            *[InvertedResidual(64, expand_ratio) for _ in range(num_blocks)],
+        )
+        self.body = body
+
+    def forward(self, x) :
+        return self.body(x)

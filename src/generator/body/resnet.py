@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from .base import SRBaseNet
 
 class ResidualBlock(nn.Module):
     def __init__(self, channels):
@@ -19,9 +18,13 @@ class ResidualBlock(nn.Module):
         residual = self.bn2(residual)
         return x + residual
 
-class SRResNet(SRBaseNet):
-    def __init__(self, num_blocks = 5, scale_factor = 4):
+class ResNet(nn.Module):
+    def __init__(self, num_blocks = 5):
+        super().__init__()
         body = nn.Sequential(
             *[ResidualBlock(64) for _ in range(num_blocks)],
         )
-        super().__init__(body, scale_factor)
+        self.body = body
+
+    def forward(self, x) :
+        return self.body(x)

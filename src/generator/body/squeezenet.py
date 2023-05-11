@@ -1,8 +1,7 @@
 import torch
 from torch import nn, Tensor
 
-from .base import SRBaseNet
-__all__ = ['SRSqueezeNet']
+__all__ = ['SqueezeNet']
 
 class Fire(nn.Module):
     def __init__(self, inplanes: int, squeeze_planes: int, expand1x1_planes: int, expand3x3_planes: int) -> None:
@@ -25,14 +24,18 @@ class Fire(nn.Module):
         x = self.squeeze(x)
         return torch.cat([self.expand1x1(x), self.expand3x3(x)], dim=1)
 
-class SRSqueezeNet(SRBaseNet):
+class SqueezeNet(nn.Module):
     def __init__(self,
                  squeeze_planes = 8,
                  expand1x1_planes = 32,
                  expand3x3_planes = 32,
-                 num_blocks = 5,
-                 scale_factor = 4) :
+                 num_blocks = 5
+        ) :
+        super().__init__()
         body = nn.Sequential(
             *[Fire(64, squeeze_planes, expand1x1_planes, expand3x3_planes) for _ in range(num_blocks)]
         )
-        super().__init__(body, scale_factor)
+        self.body = body
+
+    def forward(self, x) :
+        return self.body(x)

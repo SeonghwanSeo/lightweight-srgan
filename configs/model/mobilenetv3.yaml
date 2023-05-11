@@ -1,0 +1,10 @@
+BODY:
+  _type_: MobileNetV3
+  expand_ratio: 2
+  num_re_blocks: 2
+  num_hs_blocks: 3
+
+HEAD:
+  _type_: MobileHeadV3
+  expand_ratio: 1
+  use_se: False

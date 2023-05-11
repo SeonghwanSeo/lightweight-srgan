@@ -1,0 +1,7 @@
+BODY:
+  _type_: ShuffleNetV2
+  num_blocks: 5
+
+HEAD:
+  _type_: ShuffleHeadV2
+

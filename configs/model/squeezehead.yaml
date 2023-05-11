@@ -1,0 +1,6 @@
+BODY:
+  _type_: ResNet
+  num_blocks: 5
+
+HEAD:
+  _type_: SqueezeHead

@@ -10,7 +10,11 @@ class UpsampleBlock(nn.Sequential):
         super(UpsampleBlock, self).__init__(conv, pixel_shuffle, prelu)
 
 class SRBaseNet(nn.Module):
-    def __init__(self, body: nn.Module, scale_factor = 4) :
+    def __init__(self,
+                 body: nn.Module,
+                 head: nn.Module,
+                 scale_factor = 4
+        ) :
         super().__init__()
         upsample_block_num = int(math.log(scale_factor, 2))
         self.in_conv = nn.Sequential(
@@ -25,13 +29,13 @@ class SRBaseNet(nn.Module):
         self.upsample_blocks = nn.Sequential(
             *[UpsampleBlock(64) for _ in range(upsample_block_num)],
         )
-        self.out_conv = nn.Conv2d(64, 3, kernel_size=9, padding=4)
+        self.head = head
 
     def forward(self, x):
         x = self.in_conv(x)
         x = x + self.last_block(self.body(x))
         x = self.upsample_blocks(x)
-        return self.out_conv(x)
+        return self.head(x)
 
     @torch.no_grad()
     def inference(self, lr) :

@@ -1,8 +1,7 @@
 import torch
 from torch import nn, Tensor
-from .base import SRBaseNet
 
-__all__ = ['SRShuffleNetV2']
+__all__ = ['ShuffleNetV2']
 
 class BasicConv(nn.Sequential) :
     def __init__(self,
@@ -51,9 +50,13 @@ class InvertedResidual(nn.Module):
         out = channel_shuffle(out, 2)
         return out
 
-class SRShuffleNetV2(SRBaseNet):
-    def __init__(self, num_blocks, scale_factor = 4):
+class ShuffleNetV2(nn.Module):
+    def __init__(self, num_blocks):
+        super().__init__()
         body = nn.Sequential(
             *[InvertedResidual(64) for _ in range(num_blocks)]
         )
-        super().__init__(body, scale_factor)
+        self.body = body
+
+    def forward(self, x) :
+        return self.body(x)

@@ -25,8 +25,8 @@ Training Dataset: [DIV2K](https://data.vision.ee.ethz.ch/cvl/DIV2K/)
 
 ```bash
 ├── data/
-    ├── DIV2K_TRAIN_HR/
-    └── DIV2K_VALID_HR/
+    ├── DIV2K_train_HR/
+    └── DIV2K_valid_HR/
 ```
 
 

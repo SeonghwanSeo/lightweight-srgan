@@ -1,5 +1,0 @@
-generator_type: 'SRSqueezeNet'
-squeeze_planes: 8
-expand1x1_planes: 32
-expand3x3_planes: 32
-num_blocks: 5
