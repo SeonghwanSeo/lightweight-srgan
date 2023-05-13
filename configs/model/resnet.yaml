@@ -1,8 +1,7 @@
 BODY:
   _type_: ResNet
-  num_blocks: 5
+  num_blocks: 16
 
 HEAD:
   _type_: ConvHead
   kernel_size: 9
-

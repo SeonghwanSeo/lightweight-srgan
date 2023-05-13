@@ -5,6 +5,5 @@ BODY:
   num_hs_blocks: 8
 
 HEAD:
-  _type_: MobileHeadV3
-  expand_ratio: 1
-  use_se: False
+  _type_: ConvHead
+  kernel_size: 9

@@ -38,8 +38,7 @@ class Train_ArgParser(argparse.ArgumentParser) :
 
         modif.add_argument('--amp', action='store_true', help='Train With Mixed Prediction')
 
-        modif.add_argument('--pretrained_generator', type=str, help='path of pretrained generator')
-        modif.add_argument('--pretrained_discriminator', type=str, help='path of pretrained discriminator')
+        modif.add_argument('--pretrained', type=str, metavar="FILE", help='path of pretrained model')
 
         modif.add_argument('--max_step', type=int, help='Max Step')
         modif.add_argument('--val_interval', type=int, help='Valiation Interval(Step)')
@@ -91,10 +90,8 @@ class Train_Manager() :
             config.SEED = args.seed
         if args.amp :
             config.AMP_ENABLE = True
-        if args.pretrained_generator is not None :
-            config.PRETRAINED_GENERATOR = args.pretrained_generator
-        if args.pretrained_discriminator is not None :
-            config.PRETRAINED_DISCRIMINATOR = args.pretrained_discriminator
+        if args.pretrained is not None :
+            config.PRETRAINED_MODEL = args.pretrained
         
         if args.train_data_dir is not None :
             config.DATA.TRAIN_DATA_DIR= args.train_data_dir

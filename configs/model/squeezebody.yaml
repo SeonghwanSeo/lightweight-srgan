@@ -3,4 +3,5 @@ BODY:
   num_blocks: 16
 
 HEAD:
-  _type_: SqueezeHead
+  _type_: ConvHead
+  kernel_size: 9

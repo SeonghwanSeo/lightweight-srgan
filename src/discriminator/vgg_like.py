@@ -11,7 +11,7 @@ class BasicBlock(nn.Sequential) :
 
 class VGGStyleDiscriminator(nn.Module):
     def __init__(self):
-        super(Discriminator, self).__init__()
+        super(VGGStyleDiscriminator, self).__init__()
         self.input_size = 96
         self.inc = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, padding=1),
@@ -28,14 +28,15 @@ class VGGStyleDiscriminator(nn.Module):
         )
         after_block_size = self.input_size // 16
         self.head = nn.Sequential(
-            nn.Conv2d(512 * after_block_size ** 2, 1024, kernel_size=1),
+            nn.Linear(512 * after_block_size ** 2, 1024),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(1024, 1, kernel_size=1),
-            nn.Sigmoid(inplace=True),
+            nn.Linear(1024, 1),
+            #nn.Sigmoid(inplace=True),
         )
 
     def forward(self, x):
         B, C, H, W = x.size()
+        x = torch.clamp_(x, 0, 1)
         x = self.inc(x)     # B, 3, 96, 96  -> B, 64, 96, 96
         x = self.blocks(x)  # B, 64, 96, 96 -> B, 512, 6, 6
         x = x.view(B, -1)   # B, 512, 6, 6  -> B, 512*6*6

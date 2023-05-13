@@ -3,5 +3,6 @@ BODY:
   num_blocks: 16
 
 HEAD:
-  _type_: ShuffleHeadV2
+  _type_: ConvHead
+  kernel_size: 9
 

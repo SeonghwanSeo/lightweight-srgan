@@ -1,7 +1,8 @@
 RUN_DIR: null
 RESTART: ???  # SHOULD BE NULL
 MODEL: null
-PRETRAINED_MODEL: null
+PRETRAINED_GENERATOR: null
+PRETRAINED_DISCRIMINATOR: null
 AMP_ENABLE: false
 SEED: 0
 
@@ -22,5 +23,5 @@ DATA:
 TRAIN: 
   LR: 1e-4
   CLIP_GRAD: 1.0
-  MONITOR: 'mse'
+  MONITOR: 'lpips'
   MODE: 'min'

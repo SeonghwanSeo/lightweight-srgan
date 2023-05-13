@@ -7,8 +7,8 @@ import numpy as np
 import random
 import logging
 
-from src.adversarial_train import Trainer
-from coach.train_manager import Train_Manager
+from src.pretrain import Trainer
+from coach.pretrain_manager import Train_Manager
 from logger import setup_logger
 
 def main(config) : 

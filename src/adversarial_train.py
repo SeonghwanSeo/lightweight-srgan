@@ -2,7 +2,7 @@ import os
 import logging
 
 import torch
-from torch import Tensor
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
 import torchvision
 
@@ -11,7 +11,10 @@ from typing import Tuple, Dict, List
 from . import utils
 from .utils import NativeScalerWithGradNormCount
 from .generator import build_generator
+from .discriminator import VGGStyleDiscriminator
 from .dataset import TrainDataset, ValDataset
+from .vgg_loss import VGGLoss
+from .lpips_loss import LPIPSLoss
 
 try :
     from torch.utils.tensorboard.writer import SummaryWriter
@@ -30,8 +33,11 @@ class Trainer() :
 
         if config.restart :
             self.load_checkpoint()
-        elif config.PRETRAINED_MODEL is not None :
-            self.load_pretrained()
+        else :
+            if config.PRETRAINED_GENERATOR is not None :
+                self.load_pretrained_generator()
+            if config.PRETRAINED_DISCRIMINATOR is not None :
+                self.load_pretrained_discriminator()
 
     def setup_work_directory(self) :
         run_dir = self.config.RUN_DIR
@@ -56,14 +62,14 @@ class Trainer() :
                 data_cfg.TRAIN_BATCH_SIZE,
                 shuffle=True,
                 num_workers = data_cfg.NUM_WORKERS,
-                drop_last=True,
+                drop_last = True,
                 pin_memory=True
         )
         self.val_dataloader = DataLoader(
                 self.val_dataset,
                 data_cfg.VAL_BATCH_SIZE,
                 shuffle=False,
-                num_workers=data_cfg.NUM_WORKERS,
+                num_workers = data_cfg.NUM_WORKERS,
                 pin_memory=True
         )
         logging.info(f'num of train data: {len(self.train_dataset)}')
@@ -71,21 +77,25 @@ class Trainer() :
 
     def setup_model(self) :
         logging.info('Setup Model')
-        model_config = self.config.MODEL
-        self.model = build_generator(model_config)
-        self.model.initialize_weights()
-        self.model.cuda()
+        generator_config = self.config.MODEL
+        self.generator = build_generator(generator_config)
+        self.generator.initialize_weights()
+        self.generator.cuda()
+        self.discriminator = VGGStyleDiscriminator()
+        self.discriminator.cuda()
         log = f"number of parameters :\n" + \
-              f"Generator     : {sum(p.numel() for p in self.model.parameters() if p.requires_grad)}\n"
+              f"Generator     : {sum(p.numel() for p in self.generator.parameters() if p.requires_grad)}\n" + \
+              f"Discriminator : {sum(p.numel() for p in self.discriminator.parameters() if p.requires_grad)}\n"
         logging.info(log)
 
     def setup_optimizer(self) :
         train_config = self.config.TRAIN
         self.monitor = train_config.MONITOR
         self.mode = train_config.MODE
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=train_config.LR)
-        self.loss_scaler = NativeScalerWithGradNormCount(self.model, self.optimizer, train_config.CLIP_GRAD)
-        self.mse_loss = torch.nn.MSELoss()
+        self.optimizer_g = torch.optim.Adam(self.generator.parameters(), lr=train_config.LR)
+        self.optimizer_d = torch.optim.Adam(self.discriminator.parameters(), lr=train_config.LR)
+        self.loss_scaler_g = NativeScalerWithGradNormCount(self.generator, self.optimizer_g, train_config.CLIP_GRAD)
+        self.loss_scaler_d = NativeScalerWithGradNormCount(self.discriminator, self.optimizer_d, train_config.CLIP_GRAD)
 
     def setup_train(self) :
         self.global_step = 0
@@ -94,10 +104,12 @@ class Trainer() :
             self.best_metric = float('inf')
         else :
             self.best_metric = float('-inf')
+        self.vgg_loss = VGGLoss('vgg19_54').cuda()
+        self.bce_loss_logit = nn.BCEWithLogitsLoss()
+        self.lpips_loss = LPIPSLoss('alex').cuda()
 
     def fit(self) :
-        self.model.train()
-        self.optimizer.zero_grad()
+        self.generator.train()
         logging.info('Train Start')
         while self.global_step < self.config.MAX_STEP :
             self.global_epoch += 1
@@ -115,7 +127,7 @@ class Trainer() :
 
     @torch.no_grad()
     def validate(self) :
-        self.model.eval()
+        self.generator.eval()
         agg_metric_dict: List[Tuple[int, Dict[str, float]]] = []
         for batch in self.val_dataloader :
             batch_size = batch[0].size(0)
@@ -139,7 +151,7 @@ class Trainer() :
         else :
             self.print_metrics(metric_dict, prefix='VAL  ')
         self.log_metrics(metric_dict, prefix='VAL')
-        self.model.train()
+        self.generator.train()
 
     def aggregate_metric_dict(self, agg_dict: List[Tuple[int, Dict[str, float]]]) -> Dict[str, float]:
         sum_metric = {}
@@ -154,19 +166,47 @@ class Trainer() :
         lr, hr = batch
         lr_ = lr.cuda(non_blocking=True)
         hr_ = hr.cuda(non_blocking=True)
-        with torch.cuda.amp.autocast(enabled=self.config.AMP_ENABLE) :
-            sr_ = self.model(lr_)
-            loss = self.mse_loss(sr_, hr_)
-        self.loss_scaler(loss)
-        self.optimizer.zero_grad()
 
-        metrics = {'mse': loss.item()}
+        for p in self.discriminator.parameters() :
+            p.requires_grad = False
+        self.optimizer_g.zero_grad()
+
+        with torch.cuda.amp.autocast(enabled=self.config.AMP_ENABLE) :
+            sr_ = self.generator(lr_)
+            sr_ = torch.clamp(sr_, 0, 1)
+            loss_g_content = self.calc_content_loss(sr_, hr_)
+            logit_sr = self.discriminator(sr_)
+            loss_g_gan = self.calc_adversarial_loss(logit_sr, is_real = True)
+            loss_g = loss_g_content + 0.001 *loss_g_gan
+        self.loss_scaler_g(loss_g)
+        sr_ = sr_.detach()
+
+        for p in self.discriminator.parameters() :
+            p.requires_grad = True
+        self.optimizer_d.zero_grad()
+
+        with torch.cuda.amp.autocast(enabled=self.config.AMP_ENABLE) :
+            logit_sr = self.discriminator(sr_)
+            logit_hr = self.discriminator(hr_)
+            loss_d_fake = self.calc_adversarial_loss(logit_sr, is_real = False)
+            loss_d_real = self.calc_adversarial_loss(logit_hr, is_real = True)
+            loss_d = loss_d_fake + loss_d_real
+        self.loss_scaler_d(loss_d)
+
+        metrics = {
+                'loss_g': loss_g.item(),
+                'loss_g_vgg': loss_g_content.item(),
+                'loss_g_gan': loss_g_gan.item(),
+                'loss_d': loss_d.item(),
+                'loss_d_real': loss_d_real.item(),
+                'loss_d_fake': loss_d_fake.item(),
+        }
         if self.global_step % self.config.PRINT_INTERVAL == 0 :
             self.print_metrics(metrics, prefix='TRAIN')
         if self.global_step % self.config.TENSORBOARD_INTERVAL == 0 :
             self.log_metrics(metrics, prefix='TRAIN')
         if self.global_step % self.config.IMAGE_INTERVAL == 0 :
-            self.log_images(lr, sr_.detach().cpu(), hr)
+            self.log_images(lr, sr_.cpu(), hr)
         if self.global_step % self.config.SAVE_INTERVAL == 0 :
             save_path = os.path.join(self.save_dir, f'ckpt_{self.global_epoch}_{self.global_step}.tar')
             self.save_checkpoint(save_path)
@@ -177,9 +217,21 @@ class Trainer() :
         lr = lr.cuda(non_blocking=True)
         hr = hr.cuda(non_blocking=True)
         with torch.cuda.amp.autocast(enabled=self.config.AMP_ENABLE) :
-            sr = self.model.inference(lr)
+            sr = self.generator.inference(lr)
             metric_dict = utils.calculate_metrics(sr, hr)
+            metric_dict['lpips'] = self.lpips_loss(sr, hr).item()
+            
         return metric_dict 
+
+    def calc_adversarial_loss(self, logit, is_real: bool) :
+        if is_real :
+            target = torch.ones_like(logit)
+        else :
+            target = torch.zeros_like(logit)
+        return self.bce_loss_logit(logit, target)
+
+    def calc_content_loss(self, sr, hr) :
+        return self.vgg_loss(sr, hr)
 
     def log_metrics(self, metrics, prefix) :
         if LOAD_TENSORBOARD :
@@ -205,26 +257,34 @@ class Trainer() :
 
     def print_metrics(self, metrics: Dict[str, float], prefix: str) :
         if prefix == 'TRAIN' :
-            mse = metrics['mse']
             log = f'STEP {self.global_step}\t' + \
                 f'EPOCH {self.global_epoch}\t' + \
                 f'{prefix}\t' + \
-                f'MSE: {mse:.4f}\t'
+                f"G_LOSS: {metrics['loss_g']:.4f}\t" + \
+                f"G_VGG: {metrics['loss_g_vgg']:.4f}\t" + \
+                f"G_GAN: {metrics['loss_g_gan']:.4f}\t" + \
+                f"D_LOSS: {metrics['loss_d']:.4f}\t" + \
+                f"D_REAL: {metrics['loss_d_real']:.4f}\t" + \
+                f"D_FAKE: {metrics['loss_d_fake']:.4f}\t"
         else :
-            mse, psnr, ssim = metrics['mse'], metrics['psnr'], metrics['ssim']
+            mse, psnr, ssim, lpips = metrics['mse'], metrics['psnr'], metrics['ssim'], metrics['lpips']
             log = f'STEP {self.global_step}\t' + \
                 f'EPOCH {self.global_epoch}\t' + \
                 f'{prefix}\t' + \
                 f'MSE: {mse:.4f}\t' + \
                 f'PSNR: {psnr:.4f} dB\t' + \
-                f'SSIM: {ssim:.4f}'
+                f'SSIM: {ssim:.4f}\t' + \
+                f'LPIPS: {lpips:.4f}\t'
         logging.info(log)
 
     def save_checkpoint(self, save_path = None):
         save_state = {
-                'model': self.model.state_dict(),
-                'optimizer': self.optimizer.state_dict(),
-                'scaler': self.loss_scaler.state_dict(),
+                'generator': self.generator.state_dict(),
+                'discriminator': self.discriminator.state_dict(),
+                'optimizer_generator': self.optimizer_g.state_dict(),
+                'optimizer_discriminator': self.optimizer_d.state_dict(),
+                'scaler_generator': self.loss_scaler_g.state_dict(),
+                'scaler_discriminator': self.loss_scaler_d.state_dict(),
                 'best_metric': self.best_metric,
                 'epoch': self.global_epoch,
                 'step': self.global_step,
@@ -260,10 +320,13 @@ class Trainer() :
         logging.info(f"==============> Resuming from {ckpt_path}....................")
         checkpoint = torch.load(ckpt_path, map_location='cpu')
 
-        msg = self.model.load_state_dict(checkpoint['model'], strict=False)
+        msg = self.generator.load_state_dict(checkpoint['generator'], strict=False)
+        msg = self.discriminator.load_state_dict(checkpoint['discriminator'], strict=False)
         logging.info(msg)
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
-        self.loss_scaler.load_state_dict(checkpoint['scaler'])
+        self.optimizer_g.load_state_dict(checkpoint['optimizer_generator'])
+        self.optimizer_d.load_state_dict(checkpoint['optimizer_discriminator'])
+        self.loss_scaler_g.load_state_dict(checkpoint['scaler_generator'])
+        self.loss_scaler_d.load_state_dict(checkpoint['scaler_discriminator'])
         self.global_step = checkpoint['step']
         self.global_epoch = checkpoint['epoch']
         self.best_metric = checkpoint['best_metric']
@@ -272,13 +335,24 @@ class Trainer() :
         del checkpoint
         torch.cuda.empty_cache()
 
-    def load_pretrained(self):
-        logging.info(f"==============> Loading weight {self.config.PRETRAINED_MODEL}......")
-        checkpoint = torch.load(self.config.PRETRAINED_MODEL, map_location='cpu')
+    def load_pretrained_generator(self):
+        logging.info(f"==============> Loading generator weight {self.config.PRETRAINED_GENERATOR}......")
+        checkpoint = torch.load(self.config.PRETRAINED_GENERATOR, map_location='cpu')
 
-        msg = self.model.load_state_dict(checkpoint['model'], strict=False)
+        msg = self.generator.load_state_dict(checkpoint['model'], strict=False)
         logging.info(msg)
-        logging.info(f"=> loaded successfully {self.config.PRETRAINED_MODEL}")
+        logging.info(f"=> loaded successfully {self.config.PRETRAINED_GENERATOR}")
+
+        del checkpoint
+        torch.cuda.empty_cache()
+
+    def load_pretrained_discriminator(self):
+        logging.info(f"==============> Loading discriminator weight {self.config.PRETRAINED_DISCRIMINATOR}......")
+        checkpoint = torch.load(self.config.PRETRAINED_DISCRIMINATOR, map_location='cpu')
+
+        msg = self.discriminator.load_state_dict(checkpoint['model'], strict=False)
+        logging.info(msg)
+        logging.info(f"=> loaded successfully {self.config.PRETRAINED_DISCRIMINATOR}")
 
         del checkpoint
         torch.cuda.empty_cache()

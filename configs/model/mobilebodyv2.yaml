@@ -4,5 +4,5 @@ BODY:
   num_blocks: 16
 
 HEAD:
-  _type_: MobileHeadV2
-  expand_ratio: 1
+  _type_: ConvHead
+  kernel_size: 9
