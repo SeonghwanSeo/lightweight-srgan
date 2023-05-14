@@ -4,6 +4,7 @@ import logging
 import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import StepLR
 import torchvision
 
 from typing import Tuple, Dict, List
@@ -94,8 +95,12 @@ class Trainer() :
         self.mode = train_config.MODE
         self.optimizer_g = torch.optim.Adam(self.generator.parameters(), lr=train_config.LR)
         self.optimizer_d = torch.optim.Adam(self.discriminator.parameters(), lr=train_config.LR)
+        self.optimizer_g = torch.optim.Adam(self.generator.parameters(), lr=train_config.LR)
+        self.optimizer_d = torch.optim.Adam(self.discriminator.parameters(), lr=train_config.LR)
         self.loss_scaler_g = NativeScalerWithGradNormCount(self.generator, self.optimizer_g, train_config.CLIP_GRAD)
         self.loss_scaler_d = NativeScalerWithGradNormCount(self.discriminator, self.optimizer_d, train_config.CLIP_GRAD)
+        self.lr_schedular_g = StepLR(self.optimizer_g, train_config.STEP_SIZE, train_config.GAMMA)
+        self.lr_schedular_d = StepLR(self.optimizer_d, train_config.STEP_SIZE, train_config.GAMMA)
 
     def setup_train(self) :
         self.global_step = 0
@@ -104,6 +109,8 @@ class Trainer() :
             self.best_metric = float('inf')
         else :
             self.best_metric = float('-inf')
+        self.l1_loss = nn.L1Loss()
+        self.mse_loss = nn.MSELoss()
         self.vgg_loss = VGGLoss('vgg19_54').cuda()
         self.bce_loss_logit = nn.BCEWithLogitsLoss()
         self.lpips_loss = LPIPSLoss('alex').cuda()
@@ -173,12 +180,13 @@ class Trainer() :
 
         with torch.cuda.amp.autocast(enabled=self.config.AMP_ENABLE) :
             sr_ = self.generator(lr_)
-            sr_ = torch.clamp(sr_, 0, 1)
-            loss_g_content = self.calc_content_loss(sr_, hr_)
+            loss_g_perceptual = self.vgg_loss(sr_, hr_)
+            loss_g_l1 = self.l1_loss(sr_, hr_)
             logit_sr = self.discriminator(sr_)
             loss_g_gan = self.calc_adversarial_loss(logit_sr, is_real = True)
-            loss_g = loss_g_content + 0.001 *loss_g_gan
+            loss_g = loss_g_perceptual + 0.01 * loss_g_l1 + 0.001 *loss_g_gan
         self.loss_scaler_g(loss_g)
+        self.lr_schedular_g.step()
         sr_ = sr_.detach()
 
         for p in self.discriminator.parameters() :
@@ -192,10 +200,12 @@ class Trainer() :
             loss_d_real = self.calc_adversarial_loss(logit_hr, is_real = True)
             loss_d = loss_d_fake + loss_d_real
         self.loss_scaler_d(loss_d)
+        self.lr_schedular_d.step()
 
         metrics = {
                 'loss_g': loss_g.item(),
-                'loss_g_vgg': loss_g_content.item(),
+                'loss_g_vgg': loss_g_perceptual.item(),
+                'loss_g_l1': loss_g_l1.item(),
                 'loss_g_gan': loss_g_gan.item(),
                 'loss_d': loss_d.item(),
                 'loss_d_real': loss_d_real.item(),
@@ -230,9 +240,6 @@ class Trainer() :
             target = torch.zeros_like(logit)
         return self.bce_loss_logit(logit, target)
 
-    def calc_content_loss(self, sr, hr) :
-        return self.vgg_loss(sr, hr)
-
     def log_metrics(self, metrics, prefix) :
         if LOAD_TENSORBOARD :
             for key, value in metrics.items() :
@@ -259,22 +266,25 @@ class Trainer() :
         if prefix == 'TRAIN' :
             log = f'STEP {self.global_step}\t' + \
                 f'EPOCH {self.global_epoch}\t' + \
-                f'{prefix}\t' + \
+                f'{prefix}\n\t' + \
                 f"G_LOSS: {metrics['loss_g']:.4f}\t" + \
                 f"G_VGG: {metrics['loss_g_vgg']:.4f}\t" + \
-                f"G_GAN: {metrics['loss_g_gan']:.4f}\t" + \
+                f"G_L1: {metrics['loss_g_l1']:.4f}\t" + \
+                f"G_GAN: {metrics['loss_g_gan']:.4f}\n\t" + \
                 f"D_LOSS: {metrics['loss_d']:.4f}\t" + \
                 f"D_REAL: {metrics['loss_d_real']:.4f}\t" + \
-                f"D_FAKE: {metrics['loss_d_fake']:.4f}\t"
+                f"D_FAKE: {metrics['loss_d_fake']:.4f}\t" + \
+                "\n"
         else :
             mse, psnr, ssim, lpips = metrics['mse'], metrics['psnr'], metrics['ssim'], metrics['lpips']
             log = f'STEP {self.global_step}\t' + \
                 f'EPOCH {self.global_epoch}\t' + \
-                f'{prefix}\t' + \
+                f'{prefix}\n\t' + \
                 f'MSE: {mse:.4f}\t' + \
                 f'PSNR: {psnr:.4f} dB\t' + \
                 f'SSIM: {ssim:.4f}\t' + \
-                f'LPIPS: {lpips:.4f}\t'
+                f'LPIPS: {lpips:.4f}\t' + \
+                "\n"
         logging.info(log)
 
     def save_checkpoint(self, save_path = None):
@@ -283,6 +293,8 @@ class Trainer() :
                 'discriminator': self.discriminator.state_dict(),
                 'optimizer_generator': self.optimizer_g.state_dict(),
                 'optimizer_discriminator': self.optimizer_d.state_dict(),
+                'lr_schedular_generator': self.lr_schedular_g.state_dict(),
+                'lr_schedular_discriminator': self.lr_schedular_d.state_dict(),
                 'scaler_generator': self.loss_scaler_g.state_dict(),
                 'scaler_discriminator': self.loss_scaler_d.state_dict(),
                 'best_metric': self.best_metric,
@@ -325,6 +337,9 @@ class Trainer() :
         logging.info(msg)
         self.optimizer_g.load_state_dict(checkpoint['optimizer_generator'])
         self.optimizer_d.load_state_dict(checkpoint['optimizer_discriminator'])
+        self.lr_schedular_g.load_state_dict(checkpoint['lr_schedular_generator'])
+        self.lr_schedular_d.load_state_dict(checkpoint['lr_schedular_discriminator'])
+
         self.loss_scaler_g.load_state_dict(checkpoint['scaler_generator'])
         self.loss_scaler_d.load_state_dict(checkpoint['scaler_discriminator'])
         self.global_step = checkpoint['step']

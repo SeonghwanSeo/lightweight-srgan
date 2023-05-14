@@ -1,6 +1,5 @@
 import lpips
 from torch import nn
-loss_fn_alex = lpips.LPIPS(net='alex')
 
 class LPIPSLoss(nn.Module):
     def __init__(self, net: str = 'alex'):

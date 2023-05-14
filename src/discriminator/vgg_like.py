@@ -36,7 +36,6 @@ class VGGStyleDiscriminator(nn.Module):
 
     def forward(self, x):
         B, C, H, W = x.size()
-        x = torch.clamp_(x, 0, 1)
         x = self.inc(x)     # B, 3, 96, 96  -> B, 64, 96, 96
         x = self.blocks(x)  # B, 64, 96, 96 -> B, 512, 6, 6
         x = x.view(B, -1)   # B, 512, 6, 6  -> B, 512*6*6
