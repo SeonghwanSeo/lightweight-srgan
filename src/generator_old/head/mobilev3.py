@@ -58,6 +58,7 @@ class InvertedResidual(nn.Module):
         in_channels: int,
         out_channels: int,
         expand_ratio: int,
+        kernel_size: int,
         use_se: bool,
         use_hs: bool = False,
         se_layer: Callable[..., nn.Module] = partial(SqueezeExcitation, scale_activation=nn.Hardsigmoid),
@@ -71,13 +72,13 @@ class InvertedResidual(nn.Module):
             hidden_dim = in_channels * expand_ratio
             self.layers = nn.Sequential(
                 BasicConv(in_channels, hidden_dim, kernel_size=1, activation=activation_layer),
-                BasicConv(hidden_dim, hidden_dim, kernel_size=9, groups=hidden_dim, activation=activation_layer),
+                BasicConv(hidden_dim, hidden_dim, kernel_size, groups=hidden_dim, activation=activation_layer),
                 se_layer(hidden_dim, hidden_dim // 4) if use_se else nn.Identity(),
                 nn.Conv2d(hidden_dim, out_channels, kernel_size=1, bias=False),
             )
         else :
             self.layers = nn.Sequential(
-                BasicConv(in_channels, in_channels, kernel_size=9, groups=in_channels, activation=activation_layer),
+                BasicConv(in_channels, in_channels, kernel_size, groups=in_channels, activation=activation_layer),
                 se_layer(in_channels, in_channels // 4) if use_se else nn.Identity(),
                 nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
             )
@@ -88,10 +89,11 @@ class InvertedResidual(nn.Module):
 class MobileHeadV3(nn.Module):
     def __init__(self,
                  expand_ratio: int = 1,
+                 kernel_size: int = 9,
                  use_se: bool = False,
         ) :
         super().__init__()
-        self.layer = InvertedResidual(64, 3, expand_ratio, use_se)
+        self.layer = InvertedResidual(64, 3, expand_ratio, kernel_size, use_se)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.layer(x)

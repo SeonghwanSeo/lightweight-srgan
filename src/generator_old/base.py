@@ -6,32 +6,36 @@ class UpsampleBlock(nn.Sequential):
     def __init__(self, channels):
         conv = nn.Conv2d(channels, channels * 4, kernel_size=3, padding=1)
         pixel_shuffle = nn.PixelShuffle(2)
-        lrelu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
-        super(UpsampleBlock, self).__init__(conv, pixel_shuffle, lrelu)
+        prelu = nn.PReLU()
+        super(UpsampleBlock, self).__init__(conv, pixel_shuffle, prelu)
 
 class SRBaseNet(nn.Module):
     def __init__(self,
                  body: nn.Module,
+                 head: nn.Module,
                  scale_factor = 4,
         ):
         super().__init__()
         upsample_block_num = int(math.log(scale_factor, 2))
         self.in_conv = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=9, padding=4),
-            nn.LeakyReLU(negative_slope=0.1, inplace=True)
+            nn.PReLU()
         )
         self.body = body
-        self.body_conv = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.last_block = nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(64)
+        )
         self.upsample_blocks = nn.Sequential(
             *[UpsampleBlock(64) for _ in range(upsample_block_num)],
         )
-        self.out_conv = nn.Conv2d(64, 3, kernel_size=3, padding=1)
+        self.head = head
 
     def forward(self, x):
         x = self.in_conv(x)
-        x = x + self.body_conv(self.body(x))
+        x = x + self.last_block(self.body(x))
         x = self.upsample_blocks(x)
-        return self.out_conv(x)
+        return self.head(x)
 
     @torch.no_grad()
     def inference(self, lr) :

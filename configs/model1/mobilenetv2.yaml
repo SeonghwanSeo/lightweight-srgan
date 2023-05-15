@@ -1,0 +1,4 @@
+BODY:
+  _type_: MobileNetV2
+  expand_ratio: 2
+  num_blocks: 16

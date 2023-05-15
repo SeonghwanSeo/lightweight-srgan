@@ -1,6 +1,8 @@
 import torch
 from torch import nn, Tensor
 
+__all__ = ['ShuffleNetV2']
+
 class BasicConv(nn.Sequential) :
     def __init__(self,
                  in_channels,
@@ -38,7 +40,7 @@ class InvertedResidual(nn.Module):
         branch_features = channels // 2
         self.branch2 = nn.Sequential(
             BasicConv(branch_features, branch_features, kernel_size=1),
-            BasicConv(branch_features, branch_features, kernel_size=9, groups=branch_features, activation=False),
+            BasicConv(branch_features, branch_features, kernel_size=3, groups=branch_features, activation=False),
             BasicConv(branch_features, branch_features, kernel_size=1),
         )
 
@@ -48,12 +50,13 @@ class InvertedResidual(nn.Module):
         out = channel_shuffle(out, 2)
         return out
 
-class ShuffleHeadV2(nn.Module):
-    def __init__(self):
+class ShuffleNetV2(nn.Module):
+    def __init__(self, num_blocks):
         super().__init__()
-        self.block = InvertedResidual(64)
-        self.conv = nn.Conv2d(64, 3, kernel_size=1)
+        body = nn.Sequential(
+            *[InvertedResidual(64) for _ in range(num_blocks)]
+        )
+        self.body = body
 
     def forward(self, x) :
-        return self.conv(self.block(x))
-
+        return self.body(x)

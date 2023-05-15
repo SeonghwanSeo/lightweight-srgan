@@ -4,6 +4,7 @@ from .shufflev2 import ShuffleHeadV2
 from .mobilev2 import MobileHeadV2
 from .mobilev3 import MobileHeadV3
 from .squeeze import SqueezeHead
+from .doubleconv import DoubleConvHead
 from copy import deepcopy
 
 def build_head(config) -> nn.Module :
@@ -11,6 +12,8 @@ def build_head(config) -> nn.Module :
     _type = config.pop('_type_')
     if _type == 'ConvHead' :
         return ConvHead(**config)
+    elif _type == 'DoubleConvHead' :
+        return DoubleConvHead(**config)
     elif _type == 'SqueezeHead' :
         return SqueezeHead(**config)
     elif _type == 'MobileHeadV2' :

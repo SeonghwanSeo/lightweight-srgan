@@ -22,6 +22,7 @@ DATA:
 
 TRAIN: 
   LR: 1e-4
+  # STEPLR
   STEP_SIZE: 100000
   GAMMA: 0.1
 
