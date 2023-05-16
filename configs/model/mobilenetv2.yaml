@@ -2,7 +2,3 @@ BODY:
   _type_: MobileNetV2
   expand_ratio: 2
   num_blocks: 16
-
-HEAD:
-  _type_: MobileHeadV2
-  expand_ratio: 1

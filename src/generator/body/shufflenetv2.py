@@ -51,7 +51,7 @@ class InvertedResidual(nn.Module):
         return out
 
 class ShuffleNetV2(nn.Module):
-    def __init__(self, num_blocks):
+    def __init__(self, num_blocks: int = 16):
         super().__init__()
         body = nn.Sequential(
             *[InvertedResidual(64) for _ in range(num_blocks)]

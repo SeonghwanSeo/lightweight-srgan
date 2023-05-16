@@ -44,7 +44,7 @@ class InvertedResidual(nn.Module):
 class MobileNetV2(nn.Module):
     def __init__(self,
                  expand_ratio: int = 4,
-                 num_blocks = 5
+                 num_blocks: int = 16,
         ) :
         super().__init__()
         body = nn.Sequential(

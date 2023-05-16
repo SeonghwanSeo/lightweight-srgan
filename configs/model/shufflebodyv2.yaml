@@ -1,8 +1,0 @@
-BODY:
-  _type_: ShuffleNetV2
-  num_blocks: 16
-
-HEAD:
-  _type_: ConvHead
-  kernel_size: 9
-

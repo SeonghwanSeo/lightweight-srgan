@@ -1,8 +1,0 @@
-BODY:
-  _type_: ResNet
-  num_blocks: 16
-
-HEAD:
-  _type_: MobileHeadV3
-  expand_ratio: 1
-  use_se: False

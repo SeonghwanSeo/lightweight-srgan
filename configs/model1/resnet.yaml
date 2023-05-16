@@ -1,3 +1,0 @@
-BODY:
-  _type_: ResNet
-  num_blocks: 16

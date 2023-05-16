@@ -26,10 +26,10 @@ class Fire(nn.Module):
 
 class SqueezeNet(nn.Module):
     def __init__(self,
-                 squeeze_planes = 8,
-                 expand1x1_planes = 32,
-                 expand3x3_planes = 32,
-                 num_blocks = 5
+                 squeeze_planes: int = 8,
+                 expand1x1_planes: int = 32,
+                 expand3x3_planes: int = 32,
+                 num_blocks: int = 16,
         ) :
         super().__init__()
         body = nn.Sequential(

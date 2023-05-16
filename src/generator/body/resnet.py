@@ -19,7 +19,7 @@ class ResidualBlock(nn.Module):
         return x + residual
 
 class ResNet(nn.Module):
-    def __init__(self, num_blocks = 5):
+    def __init__(self, num_blocks: int = 16):
         super().__init__()
         body = nn.Sequential(
             *[ResidualBlock(64) for _ in range(num_blocks)],

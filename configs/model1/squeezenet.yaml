@@ -1,3 +1,0 @@
-BODY:
-  _type_: SqueezeNet
-  num_blocks: 16

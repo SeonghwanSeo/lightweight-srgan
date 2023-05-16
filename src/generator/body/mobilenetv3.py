@@ -91,8 +91,8 @@ class MobileNetV3(nn.Module):
     def __init__(self,
                  expand_ratio: int = 4,
                  use_se: bool = True,
-                 num_re_blocks: int = 2,
-                 num_hs_blocks: int = 3,
+                 num_re_blocks: int = 8,
+                 num_hs_blocks: int = 8,
         ) :
         super().__init__()
         # building inverted residual blocks
