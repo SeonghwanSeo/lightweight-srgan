@@ -36,6 +36,9 @@ class Train_ArgParser(argparse.ArgumentParser) :
         modif.add_argument('--val_batch_size', type=int, help='Validation Batch Size')
         modif.add_argument('--num_workers', type=int, help='Number of Dataloader Workers')
 
+        modif.add_argument('--crop_size', type=int, help='Size of Image Patch (HR)')
+        modif.add_argument('--random_resize', action='store_true', help='Data Augmentation')
+
         modif.add_argument('--amp', action='store_true', help='Train With Mixed Prediction')
 
         modif.add_argument('--pretrained_generator', type=str, help='path of pretrained generator')
@@ -106,6 +109,11 @@ class Train_Manager() :
             config.DATA.VAL_BATCH_SIZE = args.val_batch_size
         if args.num_workers is not None :
             config.DATA.NUM_WORKERS = args.num_workers
+
+        if args.random_resize :
+            config.DATA.RANDOM_RESIZE = True
+        if args.crop_size is not None :
+            config.DATA.CROP_SIZE = args.crop_size
 
         if args.max_step is not None :
             config.MAX_STEP = args.max_step

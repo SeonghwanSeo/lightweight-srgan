@@ -10,9 +10,9 @@ class BasicBlock(nn.Sequential) :
         )
 
 class VGGStyleDiscriminator(nn.Module):
-    def __init__(self):
+    def __init__(self, input_size=96):
         super(VGGStyleDiscriminator, self).__init__()
-        self.input_size = 96
+        self.input_size = input_size
         self.inc = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, padding=1),
             nn.LeakyReLU(0.2, inplace=True),

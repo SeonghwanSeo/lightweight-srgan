@@ -4,6 +4,7 @@ result*
 *DIV2K*
 *.sh
 __pycache__
+DATA.tar.gz
 
 # C extensions
 *.so

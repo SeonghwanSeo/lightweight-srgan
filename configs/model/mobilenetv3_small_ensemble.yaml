@@ -1,0 +1,5 @@
+BODY:
+  _type_: EnsembleMobileNetV3
+  expand_ratio: 1
+  num_re_blocks: 8
+  num_hs_blocks: 8

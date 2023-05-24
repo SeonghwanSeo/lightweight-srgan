@@ -56,7 +56,7 @@ class Trainer() :
     def setup_dataset(self) :
         logging.info('Setup Data')
         data_cfg = self.config.DATA
-        self.train_dataset = TrainDataset(data_cfg.TRAIN_DATA_DIR)
+        self.train_dataset = TrainDataset(data_cfg.TRAIN_DATA_DIR, data_cfg.CROP_SIZE, 4, data_cfg.RANDOM_RESIZE)
         self.val_dataset = ValDataset(data_cfg.VAL_DATA_DIR)
         self.train_dataloader = DataLoader(
                 self.train_dataset,
@@ -82,7 +82,7 @@ class Trainer() :
         self.generator = build_generator(generator_config)
         self.generator.initialize_weights()
         self.generator.cuda()
-        self.discriminator = VGGStyleDiscriminator()
+        self.discriminator = VGGStyleDiscriminator(self.config.DATA.CROP_SIZE)
         self.discriminator.cuda()
         log = f"number of parameters :\n" + \
               f"Generator     : {sum(p.numel() for p in self.generator.parameters() if p.requires_grad)}\n" + \
@@ -254,7 +254,7 @@ class Trainer() :
             idx = i * num_chunks
             images = []
             for j in range(idx, idx + num_chunks) :
-                _lr = utils.display_transform(lr[j], 96)
+                _lr = utils.display_transform(lr[j], self.config.DATA.CROP_SIZE)
                 _sr, _hr = sr[j], hr[j]
                 images.extend([_lr, _sr, _hr])
 

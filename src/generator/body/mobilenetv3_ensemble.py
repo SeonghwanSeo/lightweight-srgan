@@ -57,7 +57,6 @@ class InvertedResidual(nn.Module):
         self,
         channels: int,
         expand_ratio: int,
-        kernel_size: int,
         use_se: bool,
         use_hs: bool,
         se_layer: Callable[..., nn.Module] = partial(SqueezeExcitation, scale_activation=nn.Hardsigmoid),
@@ -68,30 +67,47 @@ class InvertedResidual(nn.Module):
         activation_layer = nn.Hardswish if use_hs else nn.ReLU
 
         if expand_ratio != 1 :
-            hidden_dim = channels * expand_ratio
-            self.layers = nn.Sequential(
-                BasicConv(channels, hidden_dim, kernel_size=1, activation=activation_layer),
-                BasicConv(hidden_dim, hidden_dim, kernel_size=kernel_size, groups=hidden_dim, activation=activation_layer),
-                se_layer(hidden_dim, hidden_dim // 4) if use_se else nn.Identity(),
-                nn.Conv2d(hidden_dim, channels, kernel_size=1, bias=False),
-                nn.BatchNorm2d(channels, eps=0.001, momentum=0.01),
-                )
+            self.hidden_dim = hidden_dim = channels * expand_ratio
+            self.expand_conv = BasicConv(channels, hidden_dim, kernel_size=1, activation=activation_layer)
         else :
-            self.layers = nn.Sequential(
-                BasicConv(channels, channels, kernel_size=kernel_size, groups=channels, activation=activation_layer),
-                se_layer(channels, channels // 4) if use_se else nn.Identity(),
-                nn.Conv2d(channels, channels, kernel_size=1, bias=False),
-                nn.BatchNorm2d(channels, eps=0.001, momentum=0.01),
-                )
+            self.hidden_dim = hidden_dim = channels
+            self.expand_conv = nn.Identity()
+
+        hidden_size1x1 = int(hidden_dim * 1/2)
+        hidden_size3x3 = int(hidden_dim * 1/4)
+        hidden_size5x5 = int(hidden_dim * 1/8)
+        hidden_size7x7 = int(hidden_dim * 1/8)
+        self.channel_splits = (hidden_size1x1, hidden_size1x1 + hidden_size3x3, hidden_size1x1 + hidden_size3x3 + hidden_size5x5)
+        self.conv3x3 = nn.Conv2d(hidden_size3x3, hidden_size3x3, kernel_size=3, padding = 1, groups=hidden_size3x3)
+        self.conv5x5 = nn.Conv2d(hidden_size5x5, hidden_size5x5, kernel_size=5, padding = 2, groups=hidden_size5x5)
+        self.conv7x7 = nn.Conv2d(hidden_size7x7, hidden_size7x7, kernel_size=7, padding = 3, groups=hidden_size7x7)
+
+        self.batch_norm = nn.BatchNorm2d(hidden_dim, eps=0.001, momentum=0.01)
+        self.activation = activation_layer(inplace=True)
+
+        if use_se :
+            self.se_layer = se_layer(hidden_dim, hidden_dim // 4)
+        else :
+            self.se_layer = nn.Identity()
+
+        self.pointwise = nn.Sequential(
+            nn.Conv2d(hidden_dim, channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(channels, eps=0.001, momentum=0.01),
+        )
 
     def forward(self, input: Tensor) -> Tensor:
-        return input + self.layers(input)
+        x = self.expand_conv(input)
+        x1, x2, x3, x4 = torch.tensor_split(x, self.channel_splits, dim=1)
+        xs = [x1, self.conv3x3(x2), self.conv5x5(x3), self.conv7x7(x4)]
+        x = torch.cat(xs, dim=1)
+        x = self.activation(self.batch_norm(x))
+        x = self.pointwise(self.se_layer(x))
+        return input + x
 
 
-class MobileNetV3(nn.Module):
+class EnsembleMobileNetV3(nn.Module):
     def __init__(self,
                  expand_ratio: int = 4,
-                 kernel_size: int = 3,
                  use_se: bool = True,
                  num_re_blocks: int = 8,
                  num_hs_blocks: int = 8,
@@ -99,9 +115,10 @@ class MobileNetV3(nn.Module):
         super().__init__()
         # building inverted residual blocks
         self.body = nn.Sequential(
-                *[InvertedResidual(64, expand_ratio, kernel_size, use_se, False) for _ in range(num_re_blocks)],
-                *[InvertedResidual(64, expand_ratio, kernel_size, use_se, True) for _ in range(num_hs_blocks)]
+                *[InvertedResidual(64, expand_ratio, use_se, False) for _ in range(num_re_blocks)],
+                *[InvertedResidual(64, expand_ratio, use_se, True) for _ in range(num_hs_blocks)]
         )
 
     def forward(self, x: Tensor) -> Tensor:
         return self.body(x)
+

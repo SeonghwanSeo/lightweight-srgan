@@ -1,6 +1,7 @@
 from torch import nn
 from .mobilenetv2 import MobileNetV2
 from .mobilenetv3 import MobileNetV3
+from .mobilenetv3_ensemble import EnsembleMobileNetV3
 from .resnet import ResNet
 from .shufflenetv2 import ShuffleNetV2
 from .squeezenet import SqueezeNet
@@ -17,6 +18,8 @@ def build_body(config) -> nn.Module :
         return MobileNetV2(**config)
     elif _type == 'MobileNetV3' :
         return MobileNetV3(**config)
+    elif _type == 'EnsembleMobileNetV3' :
+        return EnsembleMobileNetV3(**config)
     elif _type == 'ShuffleNetV2' :
         return ShuffleNetV2(**config)
     else :
