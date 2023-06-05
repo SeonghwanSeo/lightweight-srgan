@@ -1,5 +1,4 @@
 import torch
-from torch._six import inf
 from torchvision.transforms import ToPILImage, Compose, ToTensor, Resize, InterpolationMode
 import math
 from typing import Dict
@@ -33,11 +32,8 @@ def ampscaler_get_grad_norm(parameters, norm_type: float = 2.0) -> torch.Tensor:
     if len(parameters) == 0:
         return torch.tensor(0.)
     device = parameters[0].grad.device
-    if norm_type == inf:
-        total_norm = max(p.grad.detach().abs().max().to(device) for p in parameters)
-    else:
-        total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(),
-                                                        norm_type).to(device) for p in parameters]), norm_type)
+    total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(),
+                                                    norm_type).to(device) for p in parameters]), norm_type)
     return total_norm
 
 # https://github.com/microsoft/Swin-Transformer

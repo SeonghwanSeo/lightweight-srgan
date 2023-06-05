@@ -13,12 +13,12 @@ class Train_ArgParser(argparse.ArgumentParser) :
         # Experiment information
         exp_args = self.add_argument_group('experiment information')
         exp_args.add_argument('--name', type=str, help='job name', required=True)
-        exp_args.add_argument('--exp_dir', type=str, help='path of experiment directory', default='./result/')
+        exp_args.add_argument('--exp_dir', type=str, help='path of experiment directory', default='./result/gan/')
         exp_args.add_argument('--resume', action='store_true', help='Resume Training.')
 
         # config
         cfg_args = self.add_argument_group('config')
-        cfg_args.add_argument('--config', type=str, help='path to config file', required=True)
+        cfg_args.add_argument('--config', type=str, help='path to config file', default='./configs/train.yaml')
         cfg_args.add_argument('--model_config', type=str, help='path to model config file') 
         cfg_args.add_argument(
             "--opts",
