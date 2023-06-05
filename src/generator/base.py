@@ -59,6 +59,3 @@ class SRBaseNet(nn.Module):
                     m.weight.data *= 0.1
                     if m.bias is not None:
                         nn.init.zeros_(m.bias)
-
-    def save(self, save_path) :
-        torch.save(self.state_dict(), save_path)

@@ -1,5 +1,6 @@
 import os
 import logging
+from omegaconf import OmegaConf
 
 import torch
 from torch import Tensor
@@ -228,7 +229,7 @@ class Trainer() :
                 'best_metric': self.best_metric,
                 'epoch': self.global_epoch,
                 'step': self.global_step,
-                'config': self.config,
+                'config': OmegaConf.to_yaml(self.config),
         }
         if save_path is None :
             save_path = os.path.join(self.save_dir, f'ckpt_{self.global_epoch}_{self.global_step}.tar')
