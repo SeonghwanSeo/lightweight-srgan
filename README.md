@@ -1,4 +1,4 @@
-# CS570 SRGAN-MobileNet
+# HOw to LIghtweight SRGAN
 
 ## Table of Contents
 
@@ -16,6 +16,7 @@
 - TorchVision=0.13.1
 - OmegaConf
 - Tensorboard (optional)
+- LPIPS
 
 
 
@@ -34,7 +35,8 @@ Training Dataset: [DIV2K](https://data.vision.ee.ethz.ch/cvl/DIV2K/)
 ## Model Training
 
 ```bash
-python train.py -h
+python script/pretrain.py -h
+python script/train.py -h
 ```
 
 ### Pretraining (Generator only)
@@ -42,8 +44,7 @@ python train.py -h
 Training Script Format Example
 
 ```bash
-python train.py \
-  --config ./configs/pretrain.yaml \
+python pretrain.py \
   --exp_dir ./result/pretrain/ \
   --name <NAME> \
   --model_config ./configs/model/<MODEL>
@@ -63,10 +64,30 @@ Result
 
 ### Adversarial Training (Generator, Discriminator)
 
-TODO
+Training Script Format Example
 
+```bash
+python train.py \
+  --exp_dir ./result/gan/ \
+  --pretrained_generator ./result/pretrain/<NAME>/save/best.tar \
+  --name <NAME> \
+  --model_config ./configs/model/<MODEL>
+```
 
+Result
+
+```bash
+├── result/gan
+    └── <NAME>/
+        ├── config.yaml
+        ├── output.log
+        ├── save/         # Model Checkpoint
+        ├── image_log/    # Training Log (LR,SR,HR)
+        └── tensorboard/  # Tensorboard Log ( `tensorboard --logdir ...` )
+```
 
 ## Inference
 
-TODO
+```bash
+python test.py ./weights/mobilenetv3.tar
+```
